@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// WatchConnectivity 딕셔너리 ↔ `Data` 변환.
+/// Converts between a WatchConnectivity dictionary and `Data`.
 public struct WatchSyncCodec: Sendable {
     public let configuration: WatchSyncConfiguration
 
@@ -18,7 +18,7 @@ public struct WatchSyncCodec: Sendable {
         return dictionary[configuration.payloadKey] as? Data
     }
 
-    /// 용량 한도를 넘기면 `nil`.
+    /// Returns `nil` when the payload is empty or exceeds the size limit.
     public func dictionary(containing data: Data) -> [String: Any]? {
         guard !data.isEmpty else { return nil }
         guard data.count <= configuration.maxPayloadBytes else { return nil }

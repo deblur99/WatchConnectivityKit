@@ -8,13 +8,14 @@
 import Foundation
 import WatchConnectivity
 
-/// iPhone에서 Watch로 바이너리 페이로드를 전달한다.
+/// Sends a binary payload from iPhone to Watch.
 ///
-/// 이 모듈은 Default Actor Isolation이 없어 `WCSessionDelegate`가 MainActor로
-/// 추론되지 않는다. 앱 타깃(MainActor 기본)에서 import해도 모듈 경계로 안전하다.
+/// This module has no default actor isolation, so `WCSessionDelegate` is not
+/// inferred as MainActor. Importing it from an app target (MainActor by default)
+/// is safe across the module boundary.
 ///
-/// `WCSession.default.delegate`를 이 인스턴스가 소유한다. 앱에서 다른 delegate를
-/// 같이 쓰려면 이 서비스를 쓰지 말고 직접 `WCSession`을 다뤄야 한다.
+/// This instance owns `WCSession.default.delegate`. If the app needs another
+/// delegate, do not use this service; talk to `WCSession` directly.
 public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecked Sendable {
     public static let shared = PhoneWatchSyncService()
 
@@ -30,7 +31,7 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
         super.init()
     }
 
-    /// 앱 시작 시 저장소와 페이로드 키를 주입한다. Watch 쪽과 같은 `configuration`을 써야 한다.
+    /// Injects the store and payload keys at launch. Watch must use the same `configuration`.
     public func configure(
         dataStore: any WatchSyncDataStore,
         configuration: WatchSyncConfiguration = .default,
@@ -43,7 +44,7 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
         stateLock.unlock()
     }
 
-    /// 포그라운드 진입 시 호출. 저장소 초기화와 겹치지 않게 짧게 미룬다.
+    /// Call when entering the foreground. Delays briefly so it does not overlap store setup.
     public func scheduleActivationAndPush() {
         guard WCSession.isSupported() else { return }
 
@@ -75,7 +76,7 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
         }
     }
 
-    /// 이미 인코딩된 페이로드를 Watch로 전송한다.
+    /// Sends an already encoded payload to Watch.
     public func pushEncodedPayload(_ data: Data) {
         guard WCSession.isSupported() else { return }
         guard currentCodec().dictionary(containing: data) != nil else { return }
@@ -116,7 +117,7 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
         stateLock.unlock()
         guard shouldActivate else { return }
 
-        log("⌚️ WCSession 활성화 요청")
+        log("⌚️ Requesting WCSession activation")
         session.activate()
     }
 
@@ -132,16 +133,16 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
         stateLock.unlock()
 
         if let error {
-            log("⚠️ WCSession 활성화 실패: \(error.localizedDescription)")
+            log("⚠️ WCSession activation failed: \(error.localizedDescription)")
             return
         }
 
         guard activationState == .activated else {
-            log("⚠️ WCSession 활성화 상태=\(activationState.rawValue)")
+            log("⚠️ WCSession activation state=\(activationState.rawValue)")
             return
         }
 
-        log("✅ WCSession 활성화 완료 — paired=\(session.isPaired), watchAppInstalled=\(session.isWatchAppInstalled), reachable=\(session.isReachable)")
+        log("✅ WCSession activated — paired=\(session.isPaired), watchAppInstalled=\(session.isWatchAppInstalled), reachable=\(session.isReachable)")
         flushPendingIfPossible(session: session)
     }
 
@@ -156,7 +157,7 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
 
     public func sessionWatchStateDidChange(_ session: WCSession) {
         guard session.activationState == .activated else { return }
-        log("⌚️ Watch 상태 변경 — paired=\(session.isPaired), installed=\(session.isWatchAppInstalled)")
+        log("⌚️ Watch state changed — paired=\(session.isPaired), installed=\(session.isWatchAppInstalled)")
         flushPendingIfPossible(session: session)
     }
 
@@ -177,7 +178,7 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
         } else {
             payload = codec.emptyReply()
         }
-        log("⌚️ Watch sync 요청 응답 — keys=\(payload.keys.sorted())")
+        log("⌚️ Watch sync request reply — keys=\(payload.keys.sorted())")
         replyHandler(payload)
     }
 
@@ -186,7 +187,7 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
     private func flushPendingIfPossible(session: WCSession) {
         guard session.activationState == .activated else { return }
         guard session.isPaired, session.isWatchAppInstalled else {
-            log("⚠️ Watch push 대기 — paired=\(session.isPaired), watchAppInstalled=\(session.isWatchAppInstalled)")
+            log("⚠️ Watch push waiting — paired=\(session.isPaired), watchAppInstalled=\(session.isWatchAppInstalled)")
             return
         }
 
@@ -202,17 +203,17 @@ public final class PhoneWatchSyncService: NSObject, WCSessionDelegate, @unchecke
     private func sendPayload(_ data: Data, session: WCSession) {
         let codec = currentCodec()
         guard let payload = codec.dictionary(containing: data) else {
-            log("⚠️ Watch 전송 페이로드 생성 실패 (용량 초과 또는 빈 데이터, \(data.count) bytes)")
+            log("⚠️ Failed to build Watch payload (over size limit or empty, \(data.count) bytes)")
             return
         }
 
         do {
             try session.updateApplicationContext(payload)
-            log("✅ Watch applicationContext 전송 (\(data.count) bytes)")
+            log("✅ Sent Watch applicationContext (\(data.count) bytes)")
         } catch {
-            log("⚠️ applicationContext 실패, transferUserInfo로 재시도: \(error.localizedDescription)")
+            log("⚠️ applicationContext failed, retrying with transferUserInfo: \(error.localizedDescription)")
             session.transferUserInfo(payload)
-            log("✅ Watch transferUserInfo 큐잉")
+            log("✅ Queued Watch transferUserInfo")
         }
     }
 

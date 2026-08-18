@@ -8,9 +8,9 @@
 import Foundation
 import WatchConnectivity
 
-/// iPhone companion으로부터 페이로드를 받아 로컬 저장소에 저장한다.
+/// Receives a payload from the iPhone companion and writes it to local storage.
 ///
-/// `WCSession.default.delegate`를 이 인스턴스가 소유한다.
+/// This instance owns `WCSession.default.delegate`.
 public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unchecked Sendable {
     public static let shared = WatchCompanionSyncService()
 
@@ -21,7 +21,7 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
     private var payloadUpdatedHandler: (@MainActor @Sendable () -> Void)?
     private var activationContinuations: [CheckedContinuation<Bool, Never>] = []
 
-    /// Watch UI 갱신용. MainActor에서만 실행된다.
+    /// Reloads Watch UI. Runs on the MainActor only.
     public var onPayloadUpdated: (@MainActor @Sendable () -> Void)? {
         get {
             stateLock.lock()
@@ -39,7 +39,7 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
         super.init()
     }
 
-    /// 앱 시작 시 저장소와 페이로드 키를 주입한다. iPhone 쪽과 같은 `configuration`을 써야 한다.
+    /// Injects the store and payload keys at launch. iPhone must use the same `configuration`.
     public func configure(
         dataStore: any WatchSyncDataStore,
         configuration: WatchSyncConfiguration = .default,
@@ -58,7 +58,7 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
         session.delegate = self
         if session.activationState == .notActivated {
             session.activate()
-            log("⌚️ Watch WCSession 활성화 요청")
+            log("⌚️ Requesting Watch WCSession activation")
         }
     }
 
@@ -83,29 +83,29 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
     public func requestSyncFromCompanion() async {
         let activated = await waitUntilActivated()
         guard activated else {
-            log("⚠️ Watch WCSession 활성화 타임아웃")
+            log("⚠️ Watch WCSession activation timed out")
             return
         }
 
         guard WatchCompanionAvailability.isPairedCompanionAvailable else {
-            log("⚠️ companion 앱 미설치 — WatchConnectivity 동기화 생략")
+            log("⚠️ Companion app is not installed — skipping WatchConnectivity sync")
             return
         }
 
         let session = WCSession.default
 
         if let context = receivedContext(from: session), applyPayloadIfNeeded(context) {
-            log("✅ receivedApplicationContext에서 페이로드 적용")
+            log("✅ Applied payload from receivedApplicationContext")
             notifyPayloadUpdated()
             return
         }
 
         guard session.isReachable else {
-            log("⚠️ iPhone unreachable — applicationContext도 비어 있음")
+            log("⚠️ iPhone unreachable — applicationContext is also empty")
             return
         }
 
-        log("⌚️ iPhone에 sendMessage로 페이로드 요청")
+        log("⌚️ Requesting payload from iPhone via sendMessage")
         let request = currentCodec().syncRequest()
         await withCheckedContinuation { continuation in
             session.sendMessage(request, replyHandler: { [weak self] reply in
@@ -114,14 +114,14 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
                     return
                 }
                 if self.applyPayloadIfNeeded(reply) {
-                    log("✅ sendMessage 응답으로 페이로드 적용")
+                    log("✅ Applied payload from sendMessage reply")
                     self.notifyPayloadUpdated()
                 } else {
-                    log("⚠️ sendMessage 응답에 페이로드 없음 — keys=\(reply.keys.sorted())")
+                    log("⚠️ sendMessage reply has no payload — keys=\(reply.keys.sorted())")
                 }
                 continuation.resume()
             }, errorHandler: { [weak self] error in
-                self?.log("⚠️ iPhone 동기화 요청 실패: \(error.localizedDescription)")
+                self?.log("⚠️ iPhone sync request failed: \(error.localizedDescription)")
                 continuation.resume()
             })
         }
@@ -135,18 +135,18 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
         error: Error?
     ) {
         if let error {
-            log("⚠️ Watch WCSession 활성화 실패: \(error.localizedDescription)")
+            log("⚠️ Watch WCSession activation failed: \(error.localizedDescription)")
             resumeActivationWaiters(success: false)
             return
         }
 
         let ok = activationState == .activated
-        log("✅ Watch WCSession 활성화 완료 (companionInstalled=\(session.isCompanionAppInstalled), reachable=\(session.isReachable))")
+        log("✅ Watch WCSession activated (companionInstalled=\(session.isCompanionAppInstalled), reachable=\(session.isReachable))")
         resumeActivationWaiters(success: ok)
 
         guard ok else { return }
         if let context = receivedContext(from: session), applyPayloadIfNeeded(context) {
-            log("✅ 활성화 직후 applicationContext 페이로드 적용")
+            log("✅ Applied applicationContext payload right after activation")
             notifyPayloadUpdated()
         }
     }
@@ -154,7 +154,7 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
     public func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         guard !applicationContext.isEmpty else { return }
         if applyPayloadIfNeeded(applicationContext) {
-            log("✅ didReceiveApplicationContext 페이로드 적용")
+            log("✅ Applied payload from didReceiveApplicationContext")
             notifyPayloadUpdated()
         }
     }
@@ -162,7 +162,7 @@ public final class WatchCompanionSyncService: NSObject, WCSessionDelegate, @unch
     public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard !userInfo.isEmpty else { return }
         if applyPayloadIfNeeded(userInfo) {
-            log("✅ didReceiveUserInfo 페이로드 적용")
+            log("✅ Applied payload from didReceiveUserInfo")
             notifyPayloadUpdated()
         }
     }

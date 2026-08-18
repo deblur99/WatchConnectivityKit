@@ -5,20 +5,20 @@
 
 import Foundation
 
-/// iPhone ↔ Watch 동기화에 쓰는 WatchConnectivity 페이로드 키와 전송 한도.
+/// WatchConnectivity payload keys and size limits for iPhone ↔ Watch sync.
 ///
-/// 앱마다 다른 키를 써야 이미 배포된 페이로드와 충돌하지 않는다.
-/// iPhone·Watch 양쪽이 **같은 설정**을 써야 한다.
+/// Use app-specific keys so they do not collide with an already shipped payload.
+/// iPhone and Watch must use the **same** configuration.
 public struct WatchSyncConfiguration: Sendable, Equatable {
-    /// `applicationContext` / `userInfo` / `sendMessage` reply에 넣는 바이너리 페이로드 키.
+    /// Key for the binary payload in `applicationContext`, `userInfo`, and `sendMessage` replies.
     public var payloadKey: String
-    /// Watch가 iPhone에 최신 데이터를 요청할 때 쓰는 키.
+    /// Key Watch uses when asking iPhone for the latest data.
     public var requestSyncKey: String
-    /// 보낼 데이터가 없을 때 reply에 넣는 키.
+    /// Key set in a reply when there is nothing to send.
     public var emptyKey: String
-    /// `updateApplicationContext` 권장 상한. 초과하면 전송하지 않는다.
+    /// Recommended `updateApplicationContext` cap. Larger payloads are not sent.
     public var maxPayloadBytes: Int
-    /// 런치 직후 `WCSession.activate()`를 미루는 시간. App Group 초기화와 겹치지 않게 한다.
+    /// Delay before `WCSession.activate()` after launch, so it does not overlap App Group setup.
     public var activationDelay: TimeInterval
 
     public init(

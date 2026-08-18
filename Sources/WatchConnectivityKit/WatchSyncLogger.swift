@@ -5,12 +5,12 @@
 
 import Foundation
 
-/// 동기화 과정의 진단 로그. 앱에서 침묵·os.Logger 등으로 바꿀 수 있다.
+/// Diagnostic logging for sync. Replace with a silent logger or `os.Logger` in the app.
 public protocol WatchSyncLogger: Sendable {
     func log(_ message: String)
 }
 
-/// `print`로 그대로 출력한다.
+/// Forwards messages to `print`.
 public struct PrintWatchSyncLogger: WatchSyncLogger {
     public init() {}
 
@@ -19,7 +19,7 @@ public struct PrintWatchSyncLogger: WatchSyncLogger {
     }
 }
 
-/// 아무 것도 출력하지 않는다.
+/// Drops all messages.
 public struct SilentWatchSyncLogger: WatchSyncLogger {
     public init() {}
 

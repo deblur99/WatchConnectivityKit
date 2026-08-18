@@ -5,9 +5,9 @@
 
 import Foundation
 
-/// `UserDefaults`(App Group suite 포함)에 페이로드 `Data`를 그대로 저장한다.
+/// Stores payload `Data` in `UserDefaults`, including an App Group suite.
 ///
-/// 도메인 모델 필터·재인코딩이 필요하면 앱에서 `WatchSyncDataStore`를 직접 구현한다.
+/// If you need domain filtering or re-encoding, implement `WatchSyncDataStore` in the app.
 public final class UserDefaultsWatchSyncStore: WatchSyncDataStore, @unchecked Sendable {
     private let lock = NSLock()
     private let defaults: UserDefaults

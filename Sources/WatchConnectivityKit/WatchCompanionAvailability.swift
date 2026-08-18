@@ -8,7 +8,7 @@ import Foundation
 #if os(watchOS)
 import WatchConnectivity
 
-/// iPhone companion 앱과 WatchConnectivity 동기화가 가능한지 판별한다.
+/// Whether the iPhone companion app can sync over WatchConnectivity.
 public nonisolated enum WatchCompanionAvailability {
     public static var isPairedCompanionAvailable: Bool {
         guard WCSession.isSupported() else { return false }
